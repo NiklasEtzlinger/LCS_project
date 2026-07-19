@@ -12,7 +12,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import at.fhooe.sail.cas.model.mediators.MainServiceMediator
 import at.fhooe.sail.cas.ui.composables.CasMainScreen
@@ -51,7 +50,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = Color.Red)
+                            CircularProgressIndicator()
                         }
                     }
                 }

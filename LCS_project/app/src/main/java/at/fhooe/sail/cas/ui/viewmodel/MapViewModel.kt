@@ -25,13 +25,11 @@ import at.fhooe.sail.cas.model.features.ContextElementWrapper
 import at.fhooe.sail.cas.model.features.ContextSituation
 import at.fhooe.sail.cas.model.mediators.ContextSituationMediator
 import at.fhooe.sail.cas.model.mediators.LocationFeatureMediator
-import at.fhooe.sail.cas.model.mediators.MainServiceMediator
 import at.fhooe.sail.cas.model.repositories.IGeoFeatureRepository
 import at.fhooe.sail.cas.model.repositories.PoiRepository
 import at.fhooe.sail.cas.model.repositories.pschema.ColorMode
 import at.fhooe.sail.cas.model.repositories.pschema.ColoredOSMPresSchema
 import at.fhooe.sail.cas.model.repositories.pschema.IPresSchema
-import at.fhooe.sail.cas.model.service.IMainService
 import at.fhooe.sail.cas.model.util.getBBox
 import at.fhooe.sail.cas.ui.viewmodel.features.GeoFeature
 import at.fhooe.sail.cas.ui.viewmodel.features.LocationFeature
@@ -64,12 +62,6 @@ const val LOC_ANIM_STEP_MS: Long = 50L
 
 @OptIn(InternalCoroutinesApi::class)
 class MapViewModel(application: Application): AndroidViewModel(application) {
-
-    /**
-     * Service Stuff
-     */
-
-    val service: IMainService? by lazy { MainServiceMediator.getInstance() }
 
     /**
      * Location Stuff
