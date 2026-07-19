@@ -38,8 +38,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.model.util.getBBox
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
-import at.fhooe.sail.cas.ui.viewmodel.DELTA_DRAG
-import at.fhooe.sail.cas.ui.viewmodel.DELTA_ZOOM
 import at.fhooe.sail.cas.ui.viewmodel.MapViewModel
 import kotlin.math.ceil
 import kotlin.math.floor

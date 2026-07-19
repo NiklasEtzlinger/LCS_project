@@ -41,6 +41,7 @@ import at.fhooe.sail.cas.ui.viewmodel.rules.DynamicExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.internal.synchronized
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -56,10 +57,10 @@ import org.locationtech.proj4j.ProjCoordinate
 import kotlin.coroutines.coroutineContext
 import kotlin.math.min
 
-const val DELTA_DRAG: Float = 50f
-const val DELTA_ZOOM: Float = 1.5f
 const val MAX_TRAIL_POINTS: Int = 2000
 const val TAP_RADIUS_PX: Float = 60f
+const val LOC_ANIM_DURATION_MS: Long = 5000L
+const val LOC_ANIM_STEP_MS: Long = 50L
 
 @OptIn(InternalCoroutinesApi::class)
 class MapViewModel(application: Application): AndroidViewModel(application) {
@@ -87,21 +88,61 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
         viewModelScope.launch {
             LocationFeatureMediator.dataFlow.collect {
                 loc: at.fhooe.sail.cas.model.features.LocationFeature ->
-                val vmLocation: LocationFeature = convertToUiModel(loc)
-                synchronized(locList) {
-                    locList.clear()
-                    locList.add(vmLocation)
-                    trail.add(vmLocation)
+                animateLocationTo(convertToUiModel(loc))
+            }
+        }
+    }
+
+    private var locAnimJob: Job? = null
+
+    /**
+     * Glide the displayed location dot from its current position to the new
+     * fix over [LOC_ANIM_DURATION_MS] instead of jumping. The first fix is
+     * shown immediately; a fix arriving mid-animation restarts the glide
+     * from wherever the dot currently is.
+     */
+    private fun animateLocationTo(target: LocationFeature) {
+        locAnimJob?.cancel()
+        locAnimJob = viewModelScope.launch {
+            val start: LocationFeature? = synchronized(locList) { locList.lastOrNull() }
+            if (start == null || (start.x == target.x && start.y == target.y)) {
+                updateDisplayedLocation(target)
+                return@launch
+            }
+            // the trail follows the dot: record where this glide starts, the
+            // segment up to the moving dot is drawn live in repaint()
+            synchronized(locList) {
+                if (trail.isEmpty() || trail.last() != start) {
+                    trail.add(start)
                     if (trail.size > MAX_TRAIL_POINTS) {
                         trail.removeAt(0)
                     }
                 }
-                if (followLocation) {
-                    centerOnLocation()
-                } else if (drawLocation) {
-                    repaintAsync()
-                }
             }
+            val steps: Int = (LOC_ANIM_DURATION_MS / LOC_ANIM_STEP_MS).toInt()
+            for (i in 1..steps) {
+                delay(LOC_ANIM_STEP_MS)
+                if (!isActive) return@launch
+                val t: Float = i.toFloat() / steps
+                updateDisplayedLocation(
+                    LocationFeature(
+                        start.x + (target.x - start.x) * t,
+                        start.y + (target.y - start.y) * t
+                    )
+                )
+            }
+        }
+    }
+
+    private fun updateDisplayedLocation(loc: LocationFeature) {
+        synchronized(locList) {
+            locList.clear()
+            locList.add(loc)
+        }
+        if (followLocation) {
+            centerOnLocation()
+        } else if (drawLocation) {
+            repaintAsync()
         }
     }
 
@@ -293,6 +334,10 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
         if (width > 0 && height > 0) {
             bitmapA = createBitmap(width, height)
             bitmapB = createBitmap(width, height)
+            if (matrix.isIdentity) {
+                // first layout: show the whole map right away
+                zoomToFit()
+            }
                 /*.apply {
                 val canvas = Canvas(this)
                 val p = Paint().apply {
@@ -424,9 +469,10 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
                     }
                 } // geoList
 
-                // breadcrumb trail below POIs and location marker
+                // breadcrumb trail below POIs and location marker; the last
+                // segment ends at the currently displayed (animated) dot
                 synchronized(locList) {
-                    if (trail.size >= 2) {
+                    if (trail.isNotEmpty()) {
                         val trailPath: Path = Path()
                         val tPt: FloatArray = FloatArray(2)
                         trail.forEachIndexed { i, loc ->
@@ -436,6 +482,10 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
                             } else {
                                 trailPath.lineTo(tPt[0], tPt[1])
                             }
+                        }
+                        locList.lastOrNull()?.let { dot ->
+                            matrix.mapPoints(tPt, floatArrayOf(dot.x, dot.y))
+                            trailPath.lineTo(tPt[0], tPt[1])
                         }
                         canvas.drawPath(trailPath, trailPaint)
                     }

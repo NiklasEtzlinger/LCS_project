@@ -27,8 +27,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
 import at.fhooe.sail.cas.ui.theme.ThemeController
-import at.fhooe.sail.cas.ui.viewmodel.DELTA_DRAG
-import at.fhooe.sail.cas.ui.viewmodel.DELTA_ZOOM
 import at.fhooe.sail.cas.ui.viewmodel.MapViewModel
 
 
@@ -93,10 +91,8 @@ fun MapComponentView(
 
         Box(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.align(Alignment.TopEnd)) {
-                // Scale Controls
-                ScaleControls(
-                    onZoomIn = { viewModel.zoom(DELTA_ZOOM) },
-                    onZoomOut = { viewModel.zoom(1/ DELTA_ZOOM) },
+                // Location Controls (zoom/pan are gesture-only)
+                LocationControls(
                     onCentreLocation = { viewModel.centerOnLocation() },
                     onFollowToggle = { viewModel.toggleFollowLocation() },
                     followActive = viewModel.followLocation
@@ -128,14 +124,6 @@ fun MapComponentView(
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Nav Controls
-                NavControls(
-                    onCentre = { viewModel.zoomToFit() },
-                    onNorth = { viewModel.scrollVertical(-DELTA_DRAG) },
-                    onSouth = { viewModel.scrollVertical(DELTA_DRAG) },
-                    onWest = { viewModel.scrollHorizontal(-DELTA_DRAG) },
-                    onEast = { viewModel.scrollHorizontal(DELTA_DRAG) }
-                )
                 Spacer(modifier = Modifier.weight(1f))
                 // Tmp Controls
                 TmpControls(

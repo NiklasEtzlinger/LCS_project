@@ -8,7 +8,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -18,11 +17,13 @@ import at.fhooe.sail.cas.R
 import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
 
+/**
+ * Location related map controls: centre once on the current position and
+ * toggle follow-me mode. Zooming and panning are gesture-only (pinch/drag).
+ */
 @Composable
-fun ScaleControls(
+fun LocationControls(
     modifier: Modifier = Modifier,
-    onZoomIn: () -> Unit = {},
-    onZoomOut: () -> Unit = {},
     onCentreLocation: () -> Unit = {},
     onFollowToggle: () -> Unit = {},
     followActive: Boolean = false
@@ -33,19 +34,7 @@ fun ScaleControls(
     ) {
         FloatingActionButton(
             onClick = {
-                Log.i(TAG, "ScaleControls::FAB::onClick (+) ... ")
-                onZoomIn()
-            }
-        ) { Text("+") }
-        FloatingActionButton(
-            onClick = {
-                Log.i(TAG, "ScaleControls::FAB::onClick (-) ... ")
-                onZoomOut()
-            }
-        ) { Text("-") }
-        FloatingActionButton(
-            onClick = {
-                Log.i(TAG, "ScaleControls::FAB::onClick (my location) ... ")
+                Log.i(TAG, "LocationControls::FAB::onClick (my location) ... ")
                 onCentreLocation()
             }
         ) {
@@ -56,7 +45,7 @@ fun ScaleControls(
         }
         FloatingActionButton(
             onClick = {
-                Log.i(TAG, "ScaleControls::FAB::onClick (follow toggle) ... ")
+                Log.i(TAG, "LocationControls::FAB::onClick (follow toggle) ... ")
                 onFollowToggle()
             },
             containerColor = if (followActive) {
@@ -71,13 +60,12 @@ fun ScaleControls(
             )
         }
     }
-
 }
 
 @Preview
 @Composable
-private fun ScaleControlsPreview() {
-    CASProjectTheme{
-        ScaleControls()
+private fun LocationControlsPreview() {
+    CASProjectTheme {
+        LocationControls()
     }
 }
