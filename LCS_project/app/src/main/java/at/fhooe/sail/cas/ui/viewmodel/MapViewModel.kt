@@ -28,11 +28,14 @@ import at.fhooe.sail.cas.model.mediators.LocationFeatureMediator
 import at.fhooe.sail.cas.model.mediators.MainServiceMediator
 import at.fhooe.sail.cas.model.repositories.IGeoFeatureRepository
 import at.fhooe.sail.cas.model.repositories.PoiRepository
+import at.fhooe.sail.cas.model.repositories.pschema.ColorMode
+import at.fhooe.sail.cas.model.repositories.pschema.ColoredOSMPresSchema
 import at.fhooe.sail.cas.model.repositories.pschema.IPresSchema
 import at.fhooe.sail.cas.model.service.IMainService
 import at.fhooe.sail.cas.model.util.getBBox
 import at.fhooe.sail.cas.ui.viewmodel.features.GeoFeature
 import at.fhooe.sail.cas.ui.viewmodel.features.LocationFeature
+import at.fhooe.sail.cas.ui.viewmodel.features.PoiFeature
 import at.fhooe.sail.cas.ui.viewmodel.rules.CasRules
 import at.fhooe.sail.cas.ui.viewmodel.rules.DynamicExecutor
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +58,8 @@ import kotlin.math.min
 
 const val DELTA_DRAG: Float = 50f
 const val DELTA_ZOOM: Float = 1.5f
+const val MAX_TRAIL_POINTS: Int = 2000
+const val TAP_RADIUS_PX: Float = 60f
 
 @OptIn(InternalCoroutinesApi::class)
 class MapViewModel(application: Application): AndroidViewModel(application) {
@@ -72,6 +77,12 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
 
     var locList: MutableList<LocationFeature> = mutableListOf()
 
+    /** follow-me: keep the map centred on incoming GPS fixes */
+    var followLocation: Boolean by mutableStateOf(false)
+
+    /** breadcrumb trail of received fixes (EPSG:3857) */
+    val trail: MutableList<LocationFeature> = mutableListOf()
+
     init {
         viewModelScope.launch {
             LocationFeatureMediator.dataFlow.collect {
@@ -80,12 +91,34 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
                 synchronized(locList) {
                     locList.clear()
                     locList.add(vmLocation)
-                    if (drawLocation) {
-                        repaintAsync()
+                    trail.add(vmLocation)
+                    if (trail.size > MAX_TRAIL_POINTS) {
+                        trail.removeAt(0)
                     }
+                }
+                if (followLocation) {
+                    centerOnLocation()
+                } else if (drawLocation) {
+                    repaintAsync()
                 }
             }
         }
+    }
+
+    fun toggleFollowLocation() {
+        followLocation = !followLocation
+        if (followLocation) {
+            centerOnLocation()
+        }
+    }
+
+    fun centerOnLocation() {
+        val loc: LocationFeature = synchronized(locList) { locList.lastOrNull() } ?: return
+        val screenPt = FloatArray(2)
+        matrix.mapPoints(screenPt, floatArrayOf(loc.x, loc.y))
+        val (cX, cY) = getCanvasCentre()
+        matrix.postTranslate(cX - screenPt[0], cY - screenPt[1])
+        repaintAsync()
     }
 
     fun convertToUiModel(dmLoc: at.fhooe.sail.cas.model.features.LocationFeature) : LocationFeature {
@@ -166,6 +199,13 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
 
     fun setColorMode(v: String) {
         Log.i(TAG, "MapViewModel::setColorMode --> $v")
+        val newMode: ColorMode =
+            if (v.equals("Night", ignoreCase = true)) ColorMode.NIGHT else ColorMode.DAY
+        val schema: IPresSchema? = presSchema
+        if (schema is ColoredOSMPresSchema && schema.mode != newMode) {
+            schema.mode = newMode
+            repaintAsync()
+        }
     }
     /**
      * Map Stuff
@@ -184,12 +224,45 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
             )
         )
         repo.openRepository("Hagenberg-3857")
-        presSchema = repo.getPresSchema()
+        presSchema = ColoredOSMPresSchema(application)
         val layers: List<Triple<Int, String, String?>>? = presSchema?.getLayers()
         geoList = repo.fetchFeatures(layers)
     }
 
     private val poiRepository: PoiRepository = PoiRepository(application)
+
+    /**
+     * Tap-to-identify stuff
+     */
+    var selectedPoi: PoiFeature? by mutableStateOf(null)
+        private set
+
+    fun onMapTap(x: Float, y: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pt = FloatArray(2)
+            var best: PoiFeature? = null
+            var bestDist: Float = TAP_RADIUS_PX * TAP_RADIUS_PX
+            poiRepository.fetchPois().forEach { poi ->
+                matrix.mapPoints(pt, floatArrayOf(poi.x, poi.y))
+                val dx: Float = pt[0] - x
+                val dy: Float = pt[1] - y
+                val d2: Float = dx * dx + dy * dy
+                if (d2 < bestDist) {
+                    bestDist = d2
+                    best = poi
+                }
+            }
+            withContext(Dispatchers.Main) {
+                selectedPoi = best
+                repaintAsync()
+            }
+        }
+    }
+
+    fun clearSelection() {
+        selectedPoi = null
+        repaintAsync()
+    }
 
     /**
      * Bitmap stuff
@@ -296,6 +369,22 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
     private val drawingMutex: Mutex = Mutex()
     private var repaintJob: Job? = null
 
+    private val trailPaint: Paint = Paint().apply {
+        color = 0x9033B5E5.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = 7f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        isAntiAlias = true
+    }
+
+    private val selectionPaint: Paint = Paint().apply {
+        color = 0xFFE53935.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = 5f
+        isAntiAlias = true
+    }
+
     fun repaintAsync() {
         repaintJob?.cancel()
 
@@ -318,7 +407,7 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
             workingBitmap?.apply {
                 val canvas: Canvas = Canvas(this)
 
-                canvas.drawColor(Color.LTGRAY)
+                canvas.drawColor(presSchema?.getBackgroundColor() ?: Color.LTGRAY)
 
                 canvas.save()
                 // canvas.setMatrix(matrix)
@@ -329,11 +418,28 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
                     val tempPath: Path = Path(obj.geometry)
                     tempPath.transform(matrix)
 
-                    val paints: List<Paint>? = presSchema?.getPresSchema(obj, 1f)
+                    val paints: List<Paint>? = presSchema?.getPresSchema(obj, scale)
                     paints?.forEach { p ->
                         canvas.drawPath(tempPath, p)
                     }
                 } // geoList
+
+                // breadcrumb trail below POIs and location marker
+                synchronized(locList) {
+                    if (trail.size >= 2) {
+                        val trailPath: Path = Path()
+                        val tPt: FloatArray = FloatArray(2)
+                        trail.forEachIndexed { i, loc ->
+                            matrix.mapPoints(tPt, floatArrayOf(loc.x, loc.y))
+                            if (i == 0) {
+                                trailPath.moveTo(tPt[0], tPt[1])
+                            } else {
+                                trailPath.lineTo(tPt[0], tPt[1])
+                            }
+                        }
+                        canvas.drawPath(trailPath, trailPaint)
+                    }
+                }
 
                 for (poi in poiRepository.fetchPois()) {
                     if (!coroutineContext.isActive) return null
@@ -343,6 +449,13 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
                     val drawX: Float = tempPoi[0] - poi.icon.width/2f
                     val drawY: Float = tempPoi[1] - poi.icon.height
                     canvas.drawBitmap(poi.icon, drawX, drawY, null)
+                }
+
+                // highlight ring around the tapped POI
+                selectedPoi?.let { poi ->
+                    val tempPoi: FloatArray = FloatArray(2)
+                    matrix.mapPoints(tempPoi, floatArrayOf(poi.x, poi.y))
+                    canvas.drawCircle(tempPoi[0], tempPoi[1] - poi.icon.height/2f, 48f, selectionPaint)
                 }
 
                 synchronized(locList) {

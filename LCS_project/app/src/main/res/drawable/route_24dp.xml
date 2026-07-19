@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- winding route -->
+  <path
+      android:pathData="M5,19C9,9 15,15 19,5"
+      android:strokeColor="#000000"
+      android:strokeWidth="2"
+      android:strokeLineCap="round"
+      android:fillColor="#00000000"/>
+  <!-- start and end dots -->
+  <path
+      android:pathData="M5,19m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M19,5m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0"
+      android:fillColor="#000000"/>
+</vector>

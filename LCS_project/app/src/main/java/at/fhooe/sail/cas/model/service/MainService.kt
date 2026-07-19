@@ -21,6 +21,7 @@ import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.model.features.ContextFeature
 import at.fhooe.sail.cas.model.features.ContextMetaData
 import at.fhooe.sail.cas.model.features.ContextSituation
+import at.fhooe.sail.cas.model.features.ContextValue
 import at.fhooe.sail.cas.model.features.DummyFeature
 import at.fhooe.sail.cas.model.features.LocationFeature
 import at.fhooe.sail.cas.model.mediators.ContextSituationMediator
@@ -34,9 +35,17 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.random.Random
 
 
 const val ACTION_STOP_SERVICE = "KillMainService"
+
+/**
+ * When true, real GPS fixes are ignored and a simulated position wandering
+ * through Hagenberg is emitted instead — useful when testing far away from
+ * the area covered by the bundled GeoPackage map.
+ */
+const val MOCK_LOCATION: Boolean = true
 class MainService : Service(), IMainService, LocationListener {
 
     lateinit var locMgr: LocationManager
@@ -83,6 +92,7 @@ class MainService : Service(), IMainService, LocationListener {
      */
 
     override fun onLocationChanged(loc: Location) {
+        if (MOCK_LOCATION) return // simulated position is emitted by the worker thread
         CoroutineScope(Dispatchers.IO).launch {
             val mLoc: LocationFeature = LocationFeature(
                 longitude = loc.longitude,
@@ -158,11 +168,48 @@ class MainService : Service(), IMainService, LocationListener {
             startForeground(42, n)
         }
     }
+    // mock walk state (WGS84); start near the centre of the Hagenberg map extent,
+    // clamped to the GeoPackage bounding box (lon 14.5105..14.5183, lat 48.3605..48.3640)
+    private var mockLon: Double = 14.5145
+    private var mockLat: Double = 48.3622
+
+    private suspend fun emitMockLocation() {
+        mockLon = (mockLon + Random.nextDouble(-0.00025, 0.00025)).coerceIn(14.5110, 14.5180)
+        mockLat = (mockLat + Random.nextDouble(-0.00015, 0.00015)).coerceIn(48.3606, 48.3638)
+        LocationFeatureMediator.emitData(
+            LocationFeature(longitude = mockLon, latitude = mockLat)
+        )
+    }
+
+    private var lastDaytime: String = ""
+
+    private fun broadcastDaytimeContext() {
+        val hour: Int = LocalDateTime.now().hour
+        val daytime: String = if (hour in 6..19) "Day" else "Night"
+        if (daytime != lastDaytime) {
+            lastDaytime = daytime
+            Log.i(TAG, "MainService::broadcastDaytimeContext() --> $daytime")
+            broadcastContextFeatures(
+                mutableListOf(
+                    ContextFeature(
+                        id = "DayTimeContext",
+                        type = 5000,
+                        value = ContextValue.StringValue(daytime)
+                    )
+                )
+            )
+        }
+    }
+
     private fun startWorkerThread() {
         heartbeatJob = serviceScope.launch {
             val formatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd--HH:mm:ss")
             while (isActive) {
                 Log.i(TAG, "ping!")
+                broadcastDaytimeContext()
+                if (MOCK_LOCATION) {
+                    emitMockLocation()
+                }
                 delay(5000)
                 val timestamp: String = LocalDateTime.now().format(formatter)
                 DummyFeatureMediator.emitData(DummyFeature("$timestamp some info"))

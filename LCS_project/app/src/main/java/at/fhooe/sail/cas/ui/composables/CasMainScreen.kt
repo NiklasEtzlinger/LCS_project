@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,14 +20,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import at.fhooe.sail.cas.R
 import at.fhooe.sail.cas.ui.navigation.navItems
 import at.fhooe.sail.cas.ui.permission.PermissionController
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
+import at.fhooe.sail.cas.ui.theme.ThemeController
 
 
 @SuppressLint("UnrememberedMutableState")
@@ -60,7 +64,16 @@ fun CasMainScreen(
                     titleContentColor = MaterialTheme.colorScheme.primary,
                 ),
                 navigationIcon = { /* define navigation icon */ },
-                actions = { appBarActionsSlot?.invoke() }
+                actions = {
+                    appBarActionsSlot?.invoke()
+                    val context = LocalContext.current
+                    IconButton(onClick = { ThemeController.cycle(context) }) {
+                        Icon(
+                            painter = painterResource(R.drawable.theme_mode_24dp),
+                            contentDescription = "Theme mode: ${ThemeController.mode}"
+                        )
+                    }
+                }
             )
         },
         bottomBar =  {

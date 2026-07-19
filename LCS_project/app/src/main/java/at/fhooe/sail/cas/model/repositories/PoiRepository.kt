@@ -6,9 +6,18 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.util.Log
 import androidx.core.graphics.createBitmap
 import at.fhooe.sail.cas.R
+import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.ui.viewmodel.features.PoiFeature
+import mil.nga.geopackage.GeoPackage
+import mil.nga.geopackage.GeoPackageFactory
+import mil.nga.geopackage.features.index.FeatureIndexManager
+import mil.nga.geopackage.features.index.FeatureIndexResults
+import mil.nga.geopackage.features.user.FeatureDao
+import mil.nga.sf.GeometryEnvelope
+import mil.nga.sf.util.GeometryEnvelopeBuilder
 
 class PoiRepository(private val context: Context) {
     val pois: MutableList<PoiFeature> by lazy {
@@ -72,7 +81,89 @@ class PoiRepository(private val context: Context) {
         )
     }
 
-    fun fetchPois(): MutableList<PoiFeature> = pois
+    fun fetchPois(): MutableList<PoiFeature> = (pois + gpkgPois).toMutableList()
+
+    /**
+     * POIs loaded from the GeoPackage: all buildings with an amenity tag
+     * (restaurants, fuel stations, churches, schools, ...). Cached app-wide
+     * so multiple repository instances parse the database only once.
+     */
+    private val gpkgPois: List<PoiFeature> by lazy {
+        synchronized(PoiRepository::class.java) {
+            cachedGpkgPois ?: loadPoisFromGeoPackage().also { cachedGpkgPois = it }
+        }
+    }
+
+    private fun loadPoisFromGeoPackage(): List<PoiFeature> {
+        val result: MutableList<PoiFeature> = mutableListOf()
+        try {
+            val manager = GeoPackageFactory.getManager(context)
+            if (!manager.exists(DB_NAME)) {
+                context.assets.open(DB_ASSET).use { inputStream ->
+                    manager.importGeoPackage(DB_NAME, inputStream)
+                }
+            }
+            val gp: GeoPackage = manager.open(DB_NAME)
+            val featureDao: FeatureDao = gp.getFeatureDao(POI_LAYER)
+            val featureIndex = FeatureIndexManager(context, gp, featureDao)
+            val results: FeatureIndexResults = featureIndex.query(POI_FILTER)
+            try {
+                for (row in results) {
+                    val geometryData = row.geometry ?: continue
+                    if (geometryData.isEmpty) continue
+                    val envelope: GeometryEnvelope =
+                        GeometryEnvelopeBuilder.buildEnvelope(geometryData.geometry) ?: continue
+                    val amenity: String = row.getValue("amenity")?.toString() ?: continue
+                    val name: String = row.getValue("name")?.toString()
+                        ?.takeIf { it.isNotBlank() } ?: amenity
+                    result.add(
+                        PoiFeature(
+                            id = "gpkg-${row.getValue("fid")}",
+                            type = typeFor(amenity),
+                            x = ((envelope.minX + envelope.maxX) / 2.0).toFloat(),
+                            y = ((envelope.minY + envelope.maxY) / 2.0).toFloat(),
+                            icon = createDecoratedBitmap(60, iconFor(amenity)),
+                            name = name,
+                            category = amenity
+                        )
+                    )
+                }
+            } finally {
+                results.close()
+                featureIndex.close()
+                gp.close()
+            }
+            Log.i(TAG, "PoiRepository::loadPoisFromGeoPackage() --> ${result.size} POIs loaded")
+        } catch (e: Exception) {
+            Log.e(TAG, "PoiRepository::loadPoisFromGeoPackage() failed", e)
+        }
+        return result
+    }
+
+    private fun iconFor(amenity: String): Int = when (amenity) {
+        "fuel" -> R.drawable.gas_station_24dp
+        "parking", "parking_entrance" -> R.drawable.parking_24dp
+        else -> R.drawable.poi_24dp
+    }
+
+    private fun typeFor(amenity: String): Int = when (amenity) {
+        "fuel" -> 1100
+        "restaurant", "fast_food", "bar", "cafe" -> 1200
+        "place_of_worship" -> 1300
+        "school" -> 1400
+        "fire_station" -> 1500
+        else -> 1900
+    }
+
+    companion object {
+        private const val DB_NAME = "Hagenberg-3857"
+        private const val DB_ASSET = "Gemeinde-Hagenberg-3857.gpkg"
+        private const val POI_LAYER = "building"
+        private const val POI_FILTER = "amenity IS NOT NULL AND amenity <> ''"
+
+        @Volatile
+        private var cachedGpkgPois: List<PoiFeature>? = null
+    }
 
     private fun createDecoratedBitmap(size: Int, resId: Int): Bitmap {
         val drawable = context.getDrawable(resId)

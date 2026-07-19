@@ -24,7 +24,7 @@
             {
               "p_name" : "parameterName",
               "p_type" :  "String",
-              "p_value" : "Day"
+              "p_value" : "Night"
             }
           ]
         }

@@ -5,11 +5,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import at.fhooe.sail.cas.R
 import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
 
@@ -17,7 +22,10 @@ import at.fhooe.sail.cas.ui.theme.CASProjectTheme
 fun ScaleControls(
     modifier: Modifier = Modifier,
     onZoomIn: () -> Unit = {},
-    onZoomOut: () -> Unit = {}
+    onZoomOut: () -> Unit = {},
+    onCentreLocation: () -> Unit = {},
+    onFollowToggle: () -> Unit = {},
+    followActive: Boolean = false
 ) {
     Column(
         modifier = Modifier.padding(4.dp),
@@ -35,6 +43,33 @@ fun ScaleControls(
                 onZoomOut()
             }
         ) { Text("-") }
+        FloatingActionButton(
+            onClick = {
+                Log.i(TAG, "ScaleControls::FAB::onClick (my location) ... ")
+                onCentreLocation()
+            }
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.my_location_24dp),
+                contentDescription = "Centre on my location"
+            )
+        }
+        FloatingActionButton(
+            onClick = {
+                Log.i(TAG, "ScaleControls::FAB::onClick (follow toggle) ... ")
+                onFollowToggle()
+            },
+            containerColor = if (followActive) {
+                MaterialTheme.colorScheme.tertiaryContainer
+            } else {
+                FloatingActionButtonDefaults.containerColor
+            }
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.route_24dp),
+                contentDescription = if (followActive) "Stop following location" else "Follow location"
+            )
+        }
     }
 
 }

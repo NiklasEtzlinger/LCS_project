@@ -18,12 +18,14 @@ import at.fhooe.sail.cas.model.mediators.MainServiceMediator
 import at.fhooe.sail.cas.ui.composables.CasMainScreen
 import at.fhooe.sail.cas.ui.permission.PermissionWrapper
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
+import at.fhooe.sail.cas.ui.theme.ThemeController
 
 const val TAG: String = "CAS-Test"
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        ThemeController.init(this)
 
         val permissions: List<String> = listOf(
             Manifest.permission.POST_NOTIFICATIONS,
@@ -31,7 +33,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            CASProjectTheme {
+            CASProjectTheme(darkTheme = ThemeController.isDarkTheme()) {
                 PermissionWrapper(permissions) { permissionCtrl ->
                     if(permissionCtrl.isGranted) {
                         val appContext: Application =

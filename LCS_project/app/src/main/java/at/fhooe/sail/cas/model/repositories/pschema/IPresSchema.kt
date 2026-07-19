@@ -6,6 +6,7 @@ import at.fhooe.sail.cas.ui.viewmodel.features.GeoFeature
 interface IPresSchema {
     fun getPresSchema(feature: GeoFeature, scale: Float): List<Paint>
     fun getLayers(): List<Triple<Int, String, String?>> // type, db table, where stmt
+    fun getBackgroundColor(): Int = android.graphics.Color.LTGRAY // map background
 }
 
 data class LayerInfo(
