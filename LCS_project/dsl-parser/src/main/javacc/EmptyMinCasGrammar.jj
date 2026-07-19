@@ -1,0 +1,66 @@
+options {
+    STATIC = false;
+    JAVA_UNICODE_ESCAPE = true;
+    UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(EmptyMinCasGrammarParser)
+
+package at.fhooe.sail.android.dsl_parser.generated;
+
+public class EmptyMinCasGrammarParser {
+
+}
+
+PARSER_END(EmptyMinCasGrammarParser)
+
+/**
+*  LEXER section
+*/
+
+SKIP : {
+    " "
+    | "\t"
+    | "\n"
+    | "\r"
+}
+
+/* CONST */
+TOKEN : {
+    <DT: (
+    "Day"
+    | "Night"
+    )>   { System.out.println("DT-Token"); }
+}
+
+/* VAR */
+TOKEN : {
+    <C_DT: ("c_daytime")> { System.out.println("c_daytime"); }
+}
+
+/* OPERATORS */
+TOKEN : {
+    <EQUALS: ("EQUALS")> { System.out.println("EQUALS"); }
+}
+
+/**
+*  GRAMMAR section "c_daytime EQUALS Day"
+*/
+
+void expression() : { } {
+    stmt() <EOF> { }
+}
+
+void stmt() : {} {
+    daytime_stmt() daytime_comparison() { }
+}
+
+void daytime_comparison() : {} {
+    <EQUALS> daytime_stmt() {}
+}
+
+void daytime_stmt() : {} {
+    <DT> { /* "Day" oder "Night" */ }
+  | <C_DT> { /* "c_daytime" */ }
+}
+

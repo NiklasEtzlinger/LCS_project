@@ -1,0 +1,76 @@
+options {
+    STATIC = false;
+    JAVA_UNICODE_ESCAPE = true;
+    UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(DemoGrammarParser)
+// IMPORTANT: keep package in line with gradle package info
+package at.fhooe.sail.android.dsl_parser.generated;
+
+public class DemoGrammarParser { }
+
+PARSER_END(DemoGrammarParser)
+/* -----------------------------------
+   WHITESPACE
+----------------------------------- */
+
+SKIP :
+{
+    " "
+|   "\t"
+|   "\n"
+|   "\r"
+}
+
+/* -----------------------------------
+   TOKENS
+----------------------------------- */
+
+TOKEN :
+{
+    < NUMBER : (["0"-"9"])+ >
+}
+
+TOKEN :
+{
+    < PLUS  : "+" >
+|   < MINUS : "-" >
+|   < MUL   : "*" >
+|   < DIV   : "/" >
+|   < LPAREN : "(" >
+|   < RPAREN : ")" >
+|   < HAPPY : ":-)">
+|   < GREETING: "Moin">
+}
+
+/* -----------------------------------
+   GRAMMAR RULES
+----------------------------------- */
+
+void Expression() :
+{}
+{
+    Term()
+    (
+        ( <PLUS> | <MINUS> )
+        Term()
+    )*
+}
+
+void Term() :
+{}
+{
+    Factor()
+    (
+        ( <MUL> | <DIV> )
+        Factor()
+    )*
+}
+
+void Factor() :
+{}
+{
+      <NUMBER>
+    | <LPAREN> Expression() <RPAREN>
+}

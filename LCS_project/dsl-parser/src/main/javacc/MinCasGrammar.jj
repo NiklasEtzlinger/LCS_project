@@ -1,0 +1,97 @@
+options {
+    STATIC = false;
+    JAVA_UNICODE_ESCAPE = true;
+    UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(MinCasGrammarParser)
+
+package at.fhooe.sail.android.dsl_parser.generated;
+
+import at.fhooe.sail.android.dsl_parser.tree.TreeNode;
+import at.fhooe.sail.android.dsl_parser.tree.exception.NodeError;
+
+import at.fhooe.sail.android.dsl_parser.tree.constants.ConstantDaytimeNode;
+import at.fhooe.sail.android.dsl_parser.tree.variables.VariableDaytimeNode;
+import at.fhooe.sail.android.dsl_parser.tree.operators.OperatorEqualsNode;
+
+public class MinCasGrammarParser {
+
+}
+
+PARSER_END(MinCasGrammarParser)
+
+/**
+*  LEXER section
+*/
+
+SKIP : {
+    " "
+    | "\t"
+    | "\n"
+    | "\r"
+}
+
+/* CONST */
+TOKEN : {
+    <DT: (
+    "Day"
+    | "Night"
+    )>   {   }
+}
+
+/* VAR */
+TOKEN : {
+    <C_DT: ("c_daytime")> {  }
+}
+
+/* OPERATORS */
+TOKEN : {
+    <EQUALS: ("EQUALS")> {   }
+}
+
+/**
+*  GRAMMAR section "c_daytime EQUALS Day"
+*/
+
+TreeNode expression() : {
+    TreeNode root = null;
+ } {
+    root = stmt() <EOF> {
+        return root;
+    }
+}
+
+TreeNode stmt() : {
+    TreeNode lhs = null;
+    TreeNode operator = null;
+} {
+    lhs = daytime_stmt() operator = daytime_comparison(lhs) {
+        return operator;
+    }
+}
+
+TreeNode daytime_comparison(TreeNode _lhs) : {
+    TreeNode operator = null;
+    TreeNode rhs = null;
+} {
+    <EQUALS> rhs = daytime_stmt() {
+        operator = new OperatorEqualsNode();
+        operator.setmChilds(new TreeNode[] {_lhs, rhs});
+        return operator;
+    }
+}
+
+TreeNode daytime_stmt() : {
+    Token t = null;
+} {
+    t = <DT> {
+        /* "Day" oder "Night" */
+        return new ConstantDaytimeNode(t.image);
+    }
+  | <C_DT> {
+        /* "c_daytime" */
+        return new VariableDaytimeNode();
+    }
+}
+

@@ -1,0 +1,34 @@
+{
+  "rules" : [
+    {
+      "condition": "c_daytime EQUALS Day",
+      "action": {
+        "ruleMethod": {
+          "name": "setColorMode",
+          "parameter": [
+            {
+              "p_name" : "parameterName",
+              "p_type" :  "String",
+              "p_value" : "Day"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "Night EQUALS c_daytime",
+      "action": {
+        "ruleMethod": {
+          "name": "setColorMode",
+          "parameter": [
+            {
+              "p_name" : "parameterName",
+              "p_type" :  "String",
+              "p_value" : "Day"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
