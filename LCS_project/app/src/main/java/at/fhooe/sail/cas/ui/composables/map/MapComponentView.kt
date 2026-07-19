@@ -2,20 +2,14 @@ package at.fhooe.sail.cas.ui.composables.map
 
 import android.util.Log
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -90,50 +84,48 @@ fun MapComponentView(
         } // canvas
 
         Box(modifier = Modifier.fillMaxSize()) {
-            Row(modifier = Modifier.align(Alignment.TopEnd)) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 60.dp)
+            ) {
                 // Location Controls (zoom/pan are gesture-only)
                 LocationControls(
                     onCentreLocation = { viewModel.centerOnLocation() }
                 )
             }
-            // walk recorder sheet at the bottom of the map
-            WalkRecorderSheet(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                walkActive = viewModel.walkActive,
-                distanceMeters = viewModel.walkDistanceMeters,
-                durationMillis = viewModel.walkDurationMillis,
-                followActive = viewModel.followLocation,
-                onStartStop = { viewModel.toggleWalk() },
-                onFollowToggle = { viewModel.toggleFollowLocation() }
-            )
-            // info card for the tapped POI
-            viewModel.selectedPoi?.let { poi ->
-                Card(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(12.dp)
-                        .clickable { viewModel.clearSelection() },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        Text(
-                            text = poi.name.ifBlank { poi.id },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = poi.category.ifBlank { "type ${poi.type}" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            // bottom sheet: POI details while a POI is selected, walk recorder otherwise
+            val selectedPoi = viewModel.selectedPoi
+            if (selectedPoi != null) {
+                PoiDetailSheet(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    poi = selectedPoi,
+                    onClose = { viewModel.clearSelection() }
+                )
+            } else {
+                WalkRecorderSheet(
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    walkActive = viewModel.walkActive,
+                    distanceMeters = viewModel.walkDistanceMeters,
+                    durationMillis = viewModel.walkDurationMillis,
+                    followActive = viewModel.followLocation,
+                    onStartStop = { viewModel.toggleWalk() },
+                    onFollowToggle = { viewModel.toggleFollowLocation() }
+                )
             }
+            // floating search bar (drawn last so suggestions overlay everything)
+            PoiSearchBar(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 8.dp),
+                query = viewModel.searchQuery,
+                results = viewModel.searchResults,
+                onQueryChange = { viewModel.onSearchQueryChange(it) },
+                onResultSelected = { viewModel.selectSearchResult(it) }
+            )
         }
     }
 }

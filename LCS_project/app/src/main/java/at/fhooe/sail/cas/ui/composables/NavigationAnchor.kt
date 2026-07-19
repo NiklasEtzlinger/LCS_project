@@ -1,9 +1,6 @@
 package at.fhooe.sail.cas.ui.composables
 
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.DisposableEffectScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -18,8 +15,7 @@ import at.fhooe.sail.cas.ui.viewmodel.PoiViewModel
 
 @Composable
 fun NavigationAnchor(
-    navController: NavHostController,
-    onUpdateAction: (Any?, @Composable (() -> Unit)?) -> Unit
+    navController: NavHostController
 ) {
 
     NavHost(
@@ -30,10 +26,6 @@ fun NavigationAnchor(
         /* MapComponent      */
         /*********************/
         composable<Screens.MapComponent> {
-            DisposableEffect(Unit) {
-                onUpdateAction(Screens.MapComponent, { Text("Map Ctrl") })
-                onDispose { onUpdateAction(Screens.MapComponent, null) }
-            }
             val mapViewModel: MapViewModel = viewModel()
             MapComponentView(viewModel = mapViewModel)
         }
@@ -41,10 +33,6 @@ fun NavigationAnchor(
         /* PoiComponent      */
         /*********************/
         composable<Screens.PoiComponent> {
-            DisposableEffect(Unit) {
-                onUpdateAction(Screens.PoiComponent, { Text("Poi Ctrl") })
-                onDispose { onUpdateAction(Screens.PoiComponent, null) }
-            }
             val poiViewModel: PoiViewModel = viewModel()
             PoiComponentView(poiViewModel = poiViewModel)
         }
@@ -52,10 +40,6 @@ fun NavigationAnchor(
         /* ContextComponent  */
         /*********************/
         composable<Screens.ContextComponent> {
-            DisposableEffect(Unit) {
-                onUpdateAction(Screens.ContextComponent, { Text("Context Ctrl") })
-                onDispose { onUpdateAction(Screens.ContextComponent, null) }
-            }
             val contextViewModel: ContextViewModel = viewModel()
             ContextComponentView(contextViewModel = contextViewModel)
         }

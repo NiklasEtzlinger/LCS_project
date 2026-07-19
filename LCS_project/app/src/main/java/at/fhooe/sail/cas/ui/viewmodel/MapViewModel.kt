@@ -62,6 +62,8 @@ const val MAX_TRAIL_POINTS: Int = 2000
 const val TAP_RADIUS_PX: Float = 60f
 const val LOC_ANIM_DURATION_MS: Long = 5000L
 const val LOC_ANIM_STEP_MS: Long = 50L
+const val POI_FOCUS_SCALE: Float = 3f
+const val MAX_SEARCH_RESULTS: Int = 6
 
 @OptIn(InternalCoroutinesApi::class)
 class MapViewModel(application: Application): AndroidViewModel(application) {
@@ -367,6 +369,55 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
     fun clearSelection() {
         selectedPoi = null
         repaintAsync()
+    }
+
+    /**
+     * POI search stuff
+     */
+    var searchQuery: String by mutableStateOf("")
+        private set
+
+    var searchResults: List<PoiFeature> by mutableStateOf(emptyList())
+        private set
+
+    fun onSearchQueryChange(query: String) {
+        searchQuery = query
+        if (query.isBlank()) {
+            searchResults = emptyList()
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val matches: List<PoiFeature> = poiRepository.fetchPois()
+                .filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                    it.category.contains(query, ignoreCase = true)
+                }
+                .sortedBy { it.name }
+                .take(MAX_SEARCH_RESULTS)
+            withContext(Dispatchers.Main) {
+                // ignore stale results if the query changed in the meantime
+                if (searchQuery == query) {
+                    searchResults = matches
+                }
+            }
+        }
+    }
+
+    fun selectSearchResult(poi: PoiFeature) {
+        searchQuery = ""
+        searchResults = emptyList()
+        selectedPoi = poi
+        // centre the map on the POI ...
+        val pt = FloatArray(2)
+        matrix.mapPoints(pt, floatArrayOf(poi.x, poi.y))
+        val (cX, cY) = getCanvasCentre()
+        matrix.postTranslate(cX - pt[0], cY - pt[1])
+        // ... and zoom in to street level if the map is zoomed further out
+        if (scale < POI_FOCUS_SCALE) {
+            zoom(POI_FOCUS_SCALE / scale)
+        } else {
+            repaintAsync()
+        }
     }
 
     /**

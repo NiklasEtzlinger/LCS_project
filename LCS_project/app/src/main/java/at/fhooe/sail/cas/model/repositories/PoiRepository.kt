@@ -81,7 +81,41 @@ class PoiRepository(private val context: Context) {
         )
     }
 
-    fun fetchPois(): MutableList<PoiFeature> = (pois + gpkgPois).toMutableList()
+    fun fetchPois(): MutableList<PoiFeature> = (enrichedPois + gpkgPois).toMutableList()
+
+    /**
+     * The hardcoded parking POIs enriched with mock demo data (name,
+     * category, description, rating) without touching the original list.
+     */
+    private val enrichedPois: List<PoiFeature> by lazy {
+        pois.map { p ->
+            p.copy(
+                name = p.name.ifBlank { "Parking ${p.id.substringAfterLast('-')}" },
+                category = p.category.ifBlank { "parking" },
+                description = p.description.ifBlank { mockDescription("parking") },
+                rating = if (p.rating > 0f) p.rating else mockRating(p.id)
+            )
+        }
+    }
+
+    /** mock demo description per amenity category */
+    private fun mockDescription(amenity: String): String = when (amenity) {
+        "parking" -> "Public parking area, free of charge."
+        "restaurant" -> "Cozy local restaurant serving Austrian classics and seasonal dishes."
+        "fast_food" -> "Quick bites: burgers, fries and snacks to go."
+        "bar" -> "Relaxed bar with regional drinks and small snacks."
+        "fuel" -> "Fuel station with convenience shop."
+        "place_of_worship" -> "Historic church with regular services and quiet surroundings."
+        "school" -> "Educational institution in the Hagenberg region."
+        "fire_station" -> "Home of the local volunteer fire brigade."
+        "recycling" -> "Recycling centre for household materials."
+        "shelter" -> "Small covered shelter, a good spot for a break."
+        else -> "Point of interest in Hagenberg."
+    }
+
+    /** stable mock rating in 3.0..5.0, derived from the POI id */
+    private fun mockRating(id: String): Float =
+        3f + (kotlin.math.abs(id.hashCode()) % 21) / 10f
 
     /**
      * POIs loaded from the GeoPackage: all buildings with an amenity tag
@@ -116,15 +150,18 @@ class PoiRepository(private val context: Context) {
                     val amenity: String = row.getValue("amenity")?.toString() ?: continue
                     val name: String = row.getValue("name")?.toString()
                         ?.takeIf { it.isNotBlank() } ?: amenity
+                    val poiId: String = "gpkg-${row.getValue("fid")}"
                     result.add(
                         PoiFeature(
-                            id = "gpkg-${row.getValue("fid")}",
+                            id = poiId,
                             type = typeFor(amenity),
                             x = ((envelope.minX + envelope.maxX) / 2.0).toFloat(),
                             y = ((envelope.minY + envelope.maxY) / 2.0).toFloat(),
                             icon = createDecoratedBitmap(60, iconFor(amenity)),
                             name = name,
-                            category = amenity
+                            category = amenity,
+                            description = mockDescription(amenity),
+                            rating = mockRating(poiId)
                         )
                     )
                 }

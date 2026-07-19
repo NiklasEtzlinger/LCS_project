@@ -24,5 +24,7 @@ data class PoiFeature(
         c.drawText("?", width/2f, height/2f, p)
     },
     val name: String = "",
-    val category: String = ""
+    val category: String = "",
+    val description: String = "",
+    val rating: Float = 0f
 )
