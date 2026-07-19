@@ -93,11 +93,19 @@ fun MapComponentView(
             Row(modifier = Modifier.align(Alignment.TopEnd)) {
                 // Location Controls (zoom/pan are gesture-only)
                 LocationControls(
-                    onCentreLocation = { viewModel.centerOnLocation() },
-                    onFollowToggle = { viewModel.toggleFollowLocation() },
-                    followActive = viewModel.followLocation
+                    onCentreLocation = { viewModel.centerOnLocation() }
                 )
             }
+            // walk recorder sheet at the bottom of the map
+            WalkRecorderSheet(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                walkActive = viewModel.walkActive,
+                distanceMeters = viewModel.walkDistanceMeters,
+                durationMillis = viewModel.walkDurationMillis,
+                followActive = viewModel.followLocation,
+                onStartStop = { viewModel.toggleWalk() },
+                onFollowToggle = { viewModel.toggleFollowLocation() }
+            )
             // info card for the tapped POI
             viewModel.selectedPoi?.let { poi ->
                 Card(

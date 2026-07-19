@@ -21,18 +21,16 @@ import at.fhooe.sail.cas.ui.theme.CASProjectTheme
 import at.fhooe.sail.cas.ui.theme.ThemeController
 
 /**
- * Location related map controls: centre once on the current position and
- * toggle follow-me mode. Zooming and panning are gesture-only (pinch/drag).
- * Styled as round "maps style" buttons floating over the map.
+ * Location related map controls: centre once on the current position.
+ * Zooming and panning are gesture-only (pinch/drag). Styled as a round
+ * "maps style" button floating over the map.
  */
 @Composable
 fun LocationControls(
     modifier: Modifier = Modifier,
-    onCentreLocation: () -> Unit = {},
-    onFollowToggle: () -> Unit = {},
-    followActive: Boolean = false
+    onCentreLocation: () -> Unit = {}
 ) {
-    // resting buttons: white circles in light mode, elevated dark circles in dark mode
+    // resting button: white circle in light mode, elevated dark circle in dark mode
     val restingColor: Color = if (ThemeController.isDarkTheme()) {
         MaterialTheme.colorScheme.surfaceContainerHigh
     } else {
@@ -56,25 +54,6 @@ fun LocationControls(
             Icon(
                 painter = painterResource(R.drawable.my_location_24dp),
                 contentDescription = "Centre on my location"
-            )
-        }
-        FloatingActionButton(
-            onClick = {
-                Log.i(TAG, "LocationControls::FAB::onClick (follow toggle) ... ")
-                onFollowToggle()
-            },
-            modifier = Modifier.size(48.dp),
-            shape = CircleShape,
-            containerColor = if (followActive) MaterialTheme.colorScheme.primary else restingColor,
-            contentColor = if (followActive) {
-                MaterialTheme.colorScheme.onPrimary
-            } else {
-                MaterialTheme.colorScheme.primary
-            }
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.route_24dp),
-                contentDescription = if (followActive) "Stop following location" else "Follow location"
             )
         }
     }

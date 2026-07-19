@@ -109,6 +109,14 @@ class MainService : Service(), IMainService, LocationListener {
         Log.i(TAG, "MainService::someApiMethod() ... ")
     }
 
+    @Volatile
+    private var walkActive: Boolean = false
+
+    override fun setWalkActive(active: Boolean) {
+        Log.i(TAG, "MainService::setWalkActive() --> $active")
+        walkActive = active
+    }
+
     val ceBlackboard: MutableMap<String, ContextFeature> = mutableMapOf()
 
     override fun broadcastContextFeatures(values: List<ContextFeature>) {
@@ -174,8 +182,12 @@ class MainService : Service(), IMainService, LocationListener {
     private var mockLat: Double = 48.3622
 
     private suspend fun emitMockLocation() {
-        mockLon = (mockLon + Random.nextDouble(-0.00025, 0.00025)).coerceIn(14.5110, 14.5180)
-        mockLat = (mockLat + Random.nextDouble(-0.00015, 0.00015)).coerceIn(48.3606, 48.3638)
+        // the simulated position only advances while a walk is being recorded;
+        // otherwise the same (standing) position is re-emitted
+        if (walkActive) {
+            mockLon = (mockLon + Random.nextDouble(-0.00025, 0.00025)).coerceIn(14.5110, 14.5180)
+            mockLat = (mockLat + Random.nextDouble(-0.00015, 0.00015)).coerceIn(48.3606, 48.3638)
+        }
         LocationFeatureMediator.emitData(
             LocationFeature(longitude = mockLon, latitude = mockLat)
         )

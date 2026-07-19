@@ -25,6 +25,7 @@ import at.fhooe.sail.cas.model.features.ContextElementWrapper
 import at.fhooe.sail.cas.model.features.ContextSituation
 import at.fhooe.sail.cas.model.mediators.ContextSituationMediator
 import at.fhooe.sail.cas.model.mediators.LocationFeatureMediator
+import at.fhooe.sail.cas.model.mediators.MainServiceMediator
 import at.fhooe.sail.cas.model.repositories.IGeoFeatureRepository
 import at.fhooe.sail.cas.model.repositories.PoiRepository
 import at.fhooe.sail.cas.model.repositories.pschema.ColorMode
@@ -53,7 +54,9 @@ import mil.nga.proj.ProjectionFactory
 import mil.nga.proj.ProjectionTransform
 import org.locationtech.proj4j.ProjCoordinate
 import kotlin.coroutines.coroutineContext
+import kotlin.math.cosh
 import kotlin.math.min
+import kotlin.math.sqrt
 
 const val MAX_TRAIL_POINTS: Int = 2000
 const val TAP_RADIUS_PX: Float = 60f
@@ -76,13 +79,82 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
     /** breadcrumb trail of received fixes (EPSG:3857) */
     val trail: MutableList<LocationFeature> = mutableListOf()
 
+    /**
+     * Walk recording stuff
+     */
+    var walkActive: Boolean by mutableStateOf(false)
+        private set
+
+    var walkDistanceMeters: Float by mutableStateOf(0f)
+        private set
+
+    var walkDurationMillis: Long by mutableStateOf(0L)
+        private set
+
+    private var walkStartMillis: Long = 0L
+    private var walkTickerJob: Job? = null
+    private var lastWalkFix: LocationFeature? = null
+
     init {
         viewModelScope.launch {
             LocationFeatureMediator.dataFlow.collect {
                 loc: at.fhooe.sail.cas.model.features.LocationFeature ->
-                animateLocationTo(convertToUiModel(loc))
+                val vmLocation: LocationFeature = convertToUiModel(loc)
+                if (walkActive) {
+                    lastWalkFix?.let { prev ->
+                        walkDistanceMeters += groundDistance(prev, vmLocation)
+                    }
+                    lastWalkFix = vmLocation
+                    animateLocationTo(vmLocation)
+                } else {
+                    // not recording: keep the dot visible but stationary
+                    val current: LocationFeature? = synchronized(locList) { locList.lastOrNull() }
+                    if (current != vmLocation) {
+                        updateDisplayedLocation(vmLocation)
+                    }
+                }
             }
         }
+    }
+
+    fun toggleWalk() {
+        if (walkActive) stopWalk() else startWalk()
+    }
+
+    private fun startWalk() {
+        synchronized(locList) {
+            trail.clear()
+            lastWalkFix = locList.lastOrNull()
+        }
+        walkDistanceMeters = 0f
+        walkDurationMillis = 0L
+        walkStartMillis = System.currentTimeMillis()
+        walkActive = true
+        MainServiceMediator.getInstance()?.setWalkActive(true)
+        walkTickerJob?.cancel()
+        walkTickerJob = viewModelScope.launch {
+            while (isActive && walkActive) {
+                walkDurationMillis = System.currentTimeMillis() - walkStartMillis
+                delay(1000)
+            }
+        }
+        repaintAsync() // wipe the previous trail off the map
+    }
+
+    private fun stopWalk() {
+        walkActive = false
+        walkTickerJob?.cancel()
+        walkDurationMillis = System.currentTimeMillis() - walkStartMillis
+        MainServiceMediator.getInstance()?.setWalkActive(false)
+    }
+
+    /** ground distance in metres between two EPSG:3857 points (mercator stretch corrected) */
+    private fun groundDistance(a: LocationFeature, b: LocationFeature): Float {
+        val dx: Double = (b.x - a.x).toDouble()
+        val dy: Double = (b.y - a.y).toDouble()
+        val mercator: Double = sqrt(dx * dx + dy * dy)
+        val midY: Double = (a.y + b.y) / 2.0
+        return (mercator / cosh(midY / 6378137.0)).toFloat()
     }
 
     private var locAnimJob: Job? = null
@@ -533,6 +605,9 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        if (walkActive) {
+            MainServiceMediator.getInstance()?.setWalkActive(false)
+        }
         repo.closeRepository()
     }
 }
