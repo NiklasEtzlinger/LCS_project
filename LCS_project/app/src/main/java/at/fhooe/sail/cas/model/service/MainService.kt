@@ -176,17 +176,17 @@ class MainService : Service(), IMainService, LocationListener {
             startForeground(42, n)
         }
     }
-    // mock walk state (WGS84); start near the centre of the Hagenberg map extent,
-    // clamped to the GeoPackage bounding box (lon 14.5105..14.5183, lat 48.3605..48.3640)
+    // mock walk state (WGS84); starts in the centre of the map extent shown by
+    // MapViewModel (lon 14.5106..14.5183, lat 48.3667..48.3701) and stays inside it
     private var mockLon: Double = 14.5145
-    private var mockLat: Double = 48.3622
+    private var mockLat: Double = 48.3684
 
     private suspend fun emitMockLocation() {
         // the simulated position only advances while a walk is being recorded;
         // otherwise the same (standing) position is re-emitted
         if (walkActive) {
             mockLon = (mockLon + Random.nextDouble(-0.00025, 0.00025)).coerceIn(14.5110, 14.5180)
-            mockLat = (mockLat + Random.nextDouble(-0.00015, 0.00015)).coerceIn(48.3606, 48.3638)
+            mockLat = (mockLat + Random.nextDouble(-0.00015, 0.00015)).coerceIn(48.3670, 48.3699)
         }
         LocationFeatureMediator.emitData(
             LocationFeature(longitude = mockLon, latitude = mockLat)

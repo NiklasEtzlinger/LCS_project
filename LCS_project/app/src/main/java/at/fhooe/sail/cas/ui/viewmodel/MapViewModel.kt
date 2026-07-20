@@ -31,7 +31,10 @@ import at.fhooe.sail.cas.model.repositories.PoiRepository
 import at.fhooe.sail.cas.model.repositories.pschema.ColorMode
 import at.fhooe.sail.cas.model.repositories.pschema.ColoredOSMPresSchema
 import at.fhooe.sail.cas.model.repositories.pschema.IPresSchema
+import at.fhooe.sail.cas.model.routing.RoadGraph
+import at.fhooe.sail.cas.model.routing.RoadGraphRepository
 import at.fhooe.sail.cas.model.util.getBBox
+import at.fhooe.sail.cas.model.util.mercatorGroundDistance
 import at.fhooe.sail.cas.ui.viewmodel.features.GeoFeature
 import at.fhooe.sail.cas.ui.viewmodel.features.LocationFeature
 import at.fhooe.sail.cas.ui.viewmodel.features.PoiFeature
@@ -54,9 +57,8 @@ import mil.nga.proj.ProjectionFactory
 import mil.nga.proj.ProjectionTransform
 import org.locationtech.proj4j.ProjCoordinate
 import kotlin.coroutines.coroutineContext
-import kotlin.math.cosh
+import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sqrt
 
 const val MAX_TRAIL_POINTS: Int = 2000
 const val TAP_RADIUS_PX: Float = 60f
@@ -151,12 +153,100 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
     }
 
     /** ground distance in metres between two EPSG:3857 points (mercator stretch corrected) */
-    private fun groundDistance(a: LocationFeature, b: LocationFeature): Float {
-        val dx: Double = (b.x - a.x).toDouble()
-        val dy: Double = (b.y - a.y).toDouble()
-        val mercator: Double = sqrt(dx * dx + dy * dy)
-        val midY: Double = (a.y + b.y) / 2.0
-        return (mercator / cosh(midY / 6378137.0)).toFloat()
+    private fun groundDistance(a: LocationFeature, b: LocationFeature): Float =
+        mercatorGroundDistance(
+            a.x.toDouble(), a.y.toDouble(),
+            b.x.toDouble(), b.y.toDouble()
+        ).toFloat()
+
+    /**
+     * Routing stuff
+     */
+    var route: RoadGraph.Route? by mutableStateOf(null)
+        private set
+
+    var routeTarget: PoiFeature? by mutableStateOf(null)
+        private set
+
+    var routeCalculating: Boolean by mutableStateOf(false)
+        private set
+
+    var routeError: String? by mutableStateOf(null)
+        private set
+
+    private var routeJob: Job? = null
+
+    /** Fußweg vom aktuellen Standort zum POI berechnen und anzeigen */
+    fun startRouteTo(poi: PoiFeature) {
+        val start: LocationFeature? = synchronized(locList) { locList.lastOrNull() }
+        routeTarget = poi
+        routeError = null
+        // POI-Auswahl schließen, damit das Routen-Sheet sichtbar wird
+        selectedPoi = null
+        if (start == null) {
+            route = null
+            routeError = "Kein Standort verfügbar"
+            return
+        }
+
+        routeCalculating = true
+        routeJob?.cancel()
+        routeJob = viewModelScope.launch {
+            val result: RoadGraph.Route? = withContext(Dispatchers.Default) {
+                val graph: RoadGraph = RoadGraphRepository
+                    .getGraph(getApplication()) ?: return@withContext null
+                val startNode: Int = graph.nearestNode(start.x.toDouble(), start.y.toDouble())
+                val goalNode: Int = graph.nearestNode(poi.x.toDouble(), poi.y.toDouble())
+                graph.findRoute(startNode, goalNode)
+            }
+            routeCalculating = false
+            if (result == null) {
+                route = null
+                routeError = "Keine Route gefunden"
+            } else {
+                route = result
+                routeError = null
+                zoomToRoute(result)
+            }
+        }
+    }
+
+    fun clearRoute() {
+        routeJob?.cancel()
+        route = null
+        routeTarget = null
+        routeCalculating = false
+        routeError = null
+        repaintAsync()
+    }
+
+    /** Kartenausschnitt so setzen, dass die gesamte Route sichtbar ist */
+    private fun zoomToRoute(r: RoadGraph.Route) {
+        if (r.pointCount == 0 || width <= 0 || height <= 0) {
+            repaintAsync()
+            return
+        }
+        var minX: Float = r.x[0]
+        var maxX: Float = r.x[0]
+        var minY: Float = r.y[0]
+        var maxY: Float = r.y[0]
+        for (i in 1 until r.pointCount) {
+            minX = min(minX, r.x[i]); maxX = max(maxX, r.x[i])
+            minY = min(minY, r.y[i]); maxY = max(maxY, r.y[i])
+        }
+        // Mindestausdehnung, damit sehr kurze Routen nicht ins Extreme zoomen
+        val spanX: Float = max(maxX - minX, 120f)
+        val spanY: Float = max(maxY - minY, 120f)
+        val centreX: Float = (minX + maxX) / 2f
+        val centreY: Float = (minY + maxY) / 2f
+
+        scale = min(width / spanX, height / spanY) * 0.82f
+        matrix.reset()
+        matrix.postTranslate(-centreX, -centreY)
+        matrix.postScale(1f, -1f)
+        matrix.postScale(scale, scale)
+        matrix.postTranslate(width / 2f, height / 2f)
+        repaintAsync()
     }
 
     private var locAnimJob: Job? = null
@@ -545,6 +635,31 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
         isAntiAlias = true
     }
 
+    /** dunkle Kontur unter der Route, damit sie auf jedem Untergrund lesbar bleibt */
+    private val routeCasingPaint: Paint = Paint().apply {
+        color = 0xFF0842A0.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = 16f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        isAntiAlias = true
+    }
+
+    private val routePaint: Paint = Paint().apply {
+        color = 0xFF4285F4.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = 10f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        isAntiAlias = true
+    }
+
+    private val routeEndpointPaint: Paint = Paint().apply {
+        color = 0xFF0842A0.toInt()
+        style = Paint.Style.FILL
+        isAntiAlias = true
+    }
+
     fun repaintAsync() {
         repaintJob?.cancel()
 
@@ -603,6 +718,30 @@ class MapViewModel(application: Application): AndroidViewModel(application) {
                             trailPath.lineTo(tPt[0], tPt[1])
                         }
                         canvas.drawPath(trailPath, trailPaint)
+                    }
+                }
+
+                // berechnete Route über der Karte, aber unter den POI-Symbolen
+                route?.let { r ->
+                    if (r.pointCount >= 2) {
+                        val routePath: Path = Path()
+                        val pt: FloatArray = FloatArray(2)
+                        for (i in 0 until r.pointCount) {
+                            if (!coroutineContext.isActive) return null
+                            matrix.mapPoints(pt, floatArrayOf(r.x[i], r.y[i]))
+                            if (i == 0) routePath.moveTo(pt[0], pt[1])
+                            else routePath.lineTo(pt[0], pt[1])
+                        }
+                        canvas.drawPath(routePath, routeCasingPaint)
+                        canvas.drawPath(routePath, routePaint)
+                        // Start- und Zielpunkt markieren
+                        matrix.mapPoints(pt, floatArrayOf(r.x[0], r.y[0]))
+                        canvas.drawCircle(pt[0], pt[1], 11f, routeEndpointPaint)
+                        matrix.mapPoints(
+                            pt,
+                            floatArrayOf(r.x[r.pointCount - 1], r.y[r.pointCount - 1])
+                        )
+                        canvas.drawCircle(pt[0], pt[1], 11f, routeEndpointPaint)
                     }
                 }
 

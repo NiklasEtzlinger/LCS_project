@@ -4,20 +4,29 @@ import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import at.fhooe.sail.cas.R
 import at.fhooe.sail.cas.TAG
 import at.fhooe.sail.cas.ui.theme.CASProjectTheme
 import at.fhooe.sail.cas.ui.theme.ThemeController
@@ -95,24 +104,56 @@ fun MapComponentView(
                     onCentreLocation = { viewModel.centerOnLocation() }
                 )
             }
-            // bottom sheet: POI details while a POI is selected, walk recorder otherwise
+            // unterer Bereich: Route-Button über dem jeweils passenden Sheet
             val selectedPoi = viewModel.selectedPoi
-            if (selectedPoi != null) {
-                PoiDetailSheet(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    poi = selectedPoi,
-                    onClose = { viewModel.clearSelection() }
-                )
-            } else {
-                WalkRecorderSheet(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    walkActive = viewModel.walkActive,
-                    distanceMeters = viewModel.walkDistanceMeters,
-                    durationMillis = viewModel.walkDurationMillis,
-                    followActive = viewModel.followLocation,
-                    onStartStop = { viewModel.toggleWalk() },
-                    onFollowToggle = { viewModel.toggleFollowLocation() }
-                )
+            val routeVisible: Boolean = viewModel.route != null ||
+                    viewModel.routeCalculating ||
+                    viewModel.routeError != null
+
+            Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+                if (selectedPoi != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        FloatingActionButton(
+                            onClick = { viewModel.startRouteTo(selectedPoi) },
+                            shape = CircleShape,
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.directions_24dp),
+                                contentDescription = "Route hierher berechnen"
+                            )
+                        }
+                    }
+                }
+                when {
+                    selectedPoi != null -> PoiDetailSheet(
+                        poi = selectedPoi,
+                        onClose = { viewModel.clearSelection() }
+                    )
+
+                    routeVisible -> RouteInfoSheet(
+                        targetName = viewModel.routeTarget?.name.orEmpty(),
+                        distanceMeters = viewModel.route?.lengthMeters ?: 0f,
+                        calculating = viewModel.routeCalculating,
+                        error = viewModel.routeError,
+                        onClose = { viewModel.clearRoute() }
+                    )
+
+                    else -> WalkRecorderSheet(
+                        walkActive = viewModel.walkActive,
+                        distanceMeters = viewModel.walkDistanceMeters,
+                        durationMillis = viewModel.walkDurationMillis,
+                        followActive = viewModel.followLocation,
+                        onStartStop = { viewModel.toggleWalk() },
+                        onFollowToggle = { viewModel.toggleFollowLocation() }
+                    )
+                }
             }
             // floating search bar (drawn last so suggestions overlay everything)
             PoiSearchBar(
